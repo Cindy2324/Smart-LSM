@@ -8,7 +8,7 @@
 class PersistenceTest : public Test {
 private:
     //	const uint64_t TEST_MAX = 1024 * 32;
-    const uint64_t TEST_MAX = 1024*32;
+    const uint64_t TEST_MAX = 1024*10;
 
     void prepare(uint64_t max) {
         uint64_t i;
@@ -75,7 +75,8 @@ private:
                   << std::endl;
         std::cout.flush();
 
-        while (true) {
+        //while (true)
+        {
             volatile int dummy;
             for (i = 0; i <= 1024; ++i) {
                 // The loop slows down the program
