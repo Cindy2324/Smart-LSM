@@ -26,3 +26,8 @@ add_subdirectory(third_party/llama.cpp)
 add_subdirectory(embedding)
 
 add_subdirectory(test)
+
+
+target_link_libraries(correctness embedding)
+target_link_libraries(persistence embedding)
+target_link_libraries(efficiency embedding)

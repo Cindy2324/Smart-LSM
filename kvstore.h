@@ -17,6 +17,8 @@ private:
     std::vector<sstablehead> sstableIndex[15]; // the sshead for each level
 
     int totalLevel = -1; // 层数
+
+    std::unordered_map<uint64_t, std::vector<float>> vectorStore;
 public:
     KVStore(const std::string &dir);
 
@@ -38,4 +40,10 @@ public:
     void addsstable(sstable ss, int level); // 将ss加入缓存
 
     std::string fetchString(std::string file, int startOffset, uint32_t len);
+
+    std::vector<std::pair<std::uint64_t, std::string>> search_knn(std::string query, int k);
+
+    double cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2);
+
+    void loadVectorsFromSSTables();
 };

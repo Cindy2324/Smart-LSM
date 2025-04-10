@@ -3,6 +3,7 @@
 #include "skiplist.h"
 #include "sstable.h"
 #include "utils.h"
+#include "embedding/embedding.h"
 #include <cmath>
 
 #include <algorithm>
@@ -53,6 +54,26 @@ KVStore::KVStore(const std::string &dir) : KVStoreAPI(dir) // read from sstables
             TIME = std::max(TIME, cur.getTime()); // 更新时间戳
         }
     }
+    loadVectorsFromSSTables();
+}
+void KVStore::loadVectorsFromSSTables() {
+    for (int level = 0; level <= totalLevel; ++level) {
+        for (sstablehead it : sstableIndex[level]) {
+            std::string url = it.getFilename();
+            sstable ss;
+            ss.loadFile(url.data());
+            for (size_t i = 0; i < ss.getCnt(); ++i) {
+                uint64_t key = ss.getKey(i);
+                std::string value = ss.getData(i);
+                std::vector<float> vector = embedding_single(value);
+                if (vector.empty()) {
+                    std::cerr << "Failed to embed the value" << std::endl;
+                    continue;
+                }
+                vectorStore[key] = vector;
+            }
+        }
+    }
 }
 
 KVStore::~KVStore() {
@@ -66,6 +87,7 @@ KVStore::~KVStore() {
     }
     ss.putFile(ss.getFilename().data());
     compaction(); // 从0层开始尝试合并
+    vectorStore.clear();
 }
 
 /**
@@ -96,6 +118,8 @@ void KVStore::put(uint64_t key, const std::string &val) {
         compaction();
         s->insert(key, val);
     }
+    std::vector<float> vector = embedding_single(val);
+    vectorStore[key] = vector;
 }
 
 /**
@@ -158,6 +182,7 @@ bool KVStore::del(uint64_t key) {
     if (!res.length())
         return false; // not exist
     put(key, DEL); // put a del marker
+    vectorStore.erase(key);
     return true;
 }
 
@@ -180,6 +205,7 @@ void KVStore::reset() {
         sstableIndex[level].clear();
     }
     totalLevel = -1;
+    vectorStore.clear();
 }
 
 /**
@@ -540,4 +566,64 @@ std::string KVStore::fetchString(std::string file, int startOffset, uint32_t len
     }
 
     return std::string(strBuf, strBuf + bytesRead);
+}
+//该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的 k个向量的key和value。并且按照向量 余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
+std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::string query, int k) {
+    // 将查询字符串转化为向量
+    std::vector<float> query_vector = embedding_single(query);
+    if (query_vector.empty()) {
+        std::cerr << "Failed to embed the query" << std::endl;
+        return {};
+    }
+    // 计算所有向量与查询向量的余弦相似度
+    std::vector<std::pair<double, std::uint64_t>> similarities;
+    similarities.reserve(vectorStore.size());
+
+    for (const auto &entry : vectorStore) {
+        uint64_t key = entry.first;
+        const std::vector<float> &value_vector = entry.second;
+        double similarity = cosineSimilarity(query_vector, value_vector);
+        similarities.push_back({similarity, key});
+    }
+    // 按照余弦相似度从高到低排序
+    std::sort(similarities.rbegin(), similarities.rend(),
+        [](const std::pair<double, uint64_t> &a, const std::pair<double, uint64_t> &b) {
+            return a.first < b.first;
+        });
+
+    // 取前 k 个
+    std::vector<std::pair<std::uint64_t, std::string>> result;
+    result.reserve(k);
+
+    for (int i = 0; i < k && i < similarities.size(); ++i) {
+        uint64_t key = similarities[i].second;
+        std::string value = get(key);
+        if (value != DEL) {
+            result.push_back({key, value});
+        }
+    }
+    return result;
+}
+
+double KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) {
+    double dotProduct = 0.0;
+    double magnitudeV1 = 0.0;
+    double magnitudeV2 = 0.0;
+
+    for (size_t i = 0; i < v1.size(); ++i) {
+        dotProduct += v1[i] * v2[i];
+        magnitudeV1 += v1[i] * v1[i];
+        magnitudeV2 += v2[i] * v2[i];
+    }
+
+    double magnitude = std::sqrt(magnitudeV1) * std::sqrt(magnitudeV2);
+
+    if (dotProduct == 0.0 || magnitude == 0.0) {
+        if (dotProduct == 0.0 && magnitude == 0.0) {
+            return 1.0f;
+        }
+        return 0.0f;
+    }
+
+    return dotProduct / magnitude;
 }
