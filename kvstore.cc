@@ -71,10 +71,77 @@ void KVStore::loadVectorsFromSSTables() {
                     continue;
                 }
                 vectorStore[key] = vector;
+                insert_hnsw_node(key, vector);
             }
         }
     }
 }
+void KVStore::insert_hnsw_node(const std::uint64_t& key, const std::vector<float>& vec) {
+    int level = random_level();
+    if (level > max_level) {
+        max_level = level;
+        hnsw_levels.resize(max_level + 1);
+        entry_point = key;
+    }
+    HNSWNode node{
+        key,
+        std::vector<uint64_t>(),
+    };
+
+    if (entry_point == UINT64_MAX) { // First node
+        for (int l = 0; l <= level; ++l)
+            hnsw_levels[l][key] = node;
+        entry_point = key;
+        max_level = level;
+        return;
+    }
+
+    // if not the first node
+     uint64_t ep = entry_point;
+     for (int l = max_level; l > level; --l) {
+         auto ep_neighbors = search_layer(ep, vec, l, 1);
+         if (!ep_neighbors.empty()) ep = ep_neighbors[0];
+     }
+
+     for (int l = std::min(level, max_level); l >= 0; --l) {
+         auto neighbors = search_layer(ep, vec, l, efConstruction);
+         std::vector<std::pair<float, uint64_t>> scored;
+         for (uint64_t nid : neighbors)
+             scored.emplace_back(cosineSimilarity(vec, vectorStore[nid]), nid);
+         std::partial_sort(scored.begin(), scored.begin() + std::min(M, (int)scored.size()), scored.end(), std::greater<>());
+
+         std::vector<uint64_t> selected;
+         selected.reserve(std::min(M, (int)scored.size()));
+         for (int i = 0; i < std::min(M, (int)scored.size()); ++i)
+             selected.push_back(scored[i].second);
+
+         for (uint64_t neighbor : selected) {
+             if (hnsw_levels[l].find(neighbor) == hnsw_levels[l].end()) {
+                 hnsw_levels[l][neighbor] = HNSWNode{neighbor, {}};
+             }
+             hnsw_levels[l][neighbor].neighbors.push_back(key);
+             hnsw_levels[l][key].neighbors.push_back(neighbor);
+
+             if ((int)hnsw_levels[l][neighbor].neighbors.size() > M_max) {
+                 auto &neigh_vecs = hnsw_levels[l][neighbor].neighbors;
+                 std::vector<std::pair<float, uint64_t>> dist_list;
+                 for (uint64_t nid : neigh_vecs)
+                     dist_list.emplace_back(cosineSimilarity(vectorStore[nid], vectorStore[neighbor]), nid);
+                 std::partial_sort(dist_list.begin(), dist_list.begin() + M_max, dist_list.end(), std::greater<>());
+                 uint64_t far_node = dist_list.back().second;
+
+                 // 从neighbor的邻居列表中移除far_node
+                 neigh_vecs.erase(std::remove(neigh_vecs.begin(), neigh_vecs.end(), far_node), neigh_vecs.end());
+                 // 从far_node的邻居列表中移除neighbor
+                 auto &far_node_neighbors = hnsw_levels[l][far_node].neighbors;
+                 far_node_neighbors.erase(std::remove(far_node_neighbors.begin(), far_node_neighbors.end(), neighbor), far_node_neighbors.end());
+             }
+         }
+         hnsw_levels[l][key] = node;
+         ep = selected.empty() ? ep : selected[0];
+     }
+}
+
 
 KVStore::~KVStore() {
     sstable ss(s);
@@ -88,6 +155,7 @@ KVStore::~KVStore() {
     ss.putFile(ss.getFilename().data());
     compaction(); // 从0层开始尝试合并
     vectorStore.clear();
+    hnsw_levels.clear();
 }
 
 /**
@@ -120,6 +188,7 @@ void KVStore::put(uint64_t key, const std::string &val) {
     }
     std::vector<float> vector = embedding_single(val);
     vectorStore[key] = vector;
+    insert_hnsw_node(key, vector);
 }
 
 /**
@@ -183,6 +252,36 @@ bool KVStore::del(uint64_t key) {
         return false; // not exist
     put(key, DEL); // put a del marker
     vectorStore.erase(key);
+
+    // 从 HNSW 图中移除该节点
+    for (auto& level_map : hnsw_levels) {
+        auto it = level_map.find(key);
+        if (it != level_map.end()) {
+            // 先断开邻居节点中对该节点的引用（保持双向性）
+            for (uint64_t neighbor : it->second.neighbors) {
+                auto& nb_node = level_map[neighbor];
+                nb_node.neighbors.erase(
+                    std::remove(nb_node.neighbors.begin(), nb_node.neighbors.end(), key),
+                    nb_node.neighbors.end()
+                );
+            }
+            // 删除当前层该节点
+            level_map.erase(it);
+        }
+    }
+
+    // 特殊处理：若 entrypoint 就是这个 key，需要重新设置 entrypoint
+    if (entry_point == key) {
+        // 简单起见：重新设置为 level 0 中任意一个节点（若存在）
+        entry_point = UINT64_MAX; // 表示无效值
+        for (int l = max_level; l >= 0; --l) {
+            if (!hnsw_levels[l].empty()) {
+                entry_point = hnsw_levels[l].begin()->first;
+                break;
+            }
+        }
+    }
+
     return true;
 }
 
@@ -206,6 +305,9 @@ void KVStore::reset() {
     }
     totalLevel = -1;
     vectorStore.clear();
+    hnsw_levels.clear();
+    entry_point = UINT64_MAX;
+    max_level = -1;
 }
 
 /**
@@ -567,7 +669,7 @@ std::string KVStore::fetchString(std::string file, int startOffset, uint32_t len
 
     return std::string(strBuf, strBuf + bytesRead);
 }
-//该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的 k个向量的key和value。并且按照向量 余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
+//该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::string query, int k) {
     // 将查询字符串转化为向量
     std::vector<float> query_vector = embedding_single(query);
@@ -605,7 +707,7 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::stri
     return result;
 }
 
-double KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) {
+float KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) {
     double dotProduct = 0.0;
     double magnitudeV1 = 0.0;
     double magnitudeV2 = 0.0;
@@ -626,4 +728,98 @@ double KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector
     }
 
     return dotProduct / magnitude;
+}
+
+std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = efConstruction) {
+    // ep_id为起始点，query_vec为要搜索的点的vector，level为当前搜索的层，efConstruction为维护当前层搜索到的与q最近邻的个数
+    std::priority_queue<std::pair<float, uint64_t>, std::vector<std::pair<float, uint64_t>>, std::greater<>> top_candidates; // 最小堆
+    std::queue<uint64_t> bfs_queue;
+    std::unordered_set<uint64_t> visited;
+    std::unordered_map<uint64_t, float> sim_cache; // 缓存相似度计算结果
+
+    // 检查起始节点是否存在
+    if (vectorStore.find(ep_id) == vectorStore.end()) return {};
+
+    // 初始化
+    float ep_sim = cosineSimilarity(vectorStore[ep_id], query_vec);
+    top_candidates.emplace(ep_sim, ep_id);
+    bfs_queue.push(ep_id);
+    visited.insert(ep_id);
+    sim_cache[ep_id] = ep_sim;
+
+    // BFS扩展
+    while (!bfs_queue.empty()) {
+        uint64_t current_node = bfs_queue.front();
+        bfs_queue.pop();
+
+        // 遍历邻居节点
+        for (uint64_t neighbor : hnsw_levels[level][current_node].neighbors) {
+            if (visited.count(neighbor)) continue;
+            visited.insert(neighbor);
+
+            // 检查邻居节点是否存在
+            if (vectorStore.find(neighbor) == vectorStore.end()) continue;
+
+            // 计算相似度（优先从缓存中读取）
+            float sim;
+            if (sim_cache.count(neighbor)) {
+                sim = sim_cache[neighbor];
+            } else {
+                sim = cosineSimilarity(vectorStore[neighbor], query_vec);
+                sim_cache[neighbor] = sim;
+            }
+
+            // 更新候选队列
+            if ((int)top_candidates.size() < ef) {
+                top_candidates.emplace(sim, neighbor);
+            } else if (sim > top_candidates.top().first) {
+                top_candidates.pop();
+                top_candidates.emplace(sim, neighbor);
+            }
+
+            // 将邻居加入BFS队列
+            bfs_queue.push(neighbor);
+        }
+    }
+
+    // 提取结果
+    std::vector<uint64_t> result;
+    while (!top_candidates.empty()) {
+        result.push_back(top_candidates.top().second);
+        top_candidates.pop();
+    }
+    std::reverse(result.begin(), result.end()); // 按相似度从高到低排序
+    return result;
+}
+
+//该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
+std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std::string query, int k) {
+    std::vector<float> query_vec = embedding_single(query);
+    if (query_vec.empty()) {
+        std::cerr << "Failed to embed the query" << std::endl;
+        return {};
+    }
+
+    uint64_t ep = entry_point;
+    for (int l = max_level; l >= 1; --l) {
+        auto next = search_layer(ep, query_vec, l, 1);
+        if (!next.empty()) ep = next[0];
+    }
+
+    auto ef_results = search_layer(ep, query_vec, 0, efConstruction);
+    std::vector<std::pair<float, uint64_t>> scored;
+    for (uint64_t key : ef_results)
+        scored.emplace_back(cosineSimilarity(query_vec, vectorStore[key]), key);
+
+    std::partial_sort(scored.begin(), scored.begin() + std::min(k, (int)scored.size()), scored.end(), std::greater<>());
+
+    std::vector<std::pair<std::uint64_t, std::string>> result;
+    for (int i = 0; i < std::min(k, (int)scored.size()); ++i) {
+        uint64_t key = scored[i].second;
+        std::string value = get(key);
+        if (value != DEL) {
+            result.push_back({key, value});
+        }
+    }
+    return result;
 }
