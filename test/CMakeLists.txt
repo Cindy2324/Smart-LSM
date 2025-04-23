@@ -1,22 +1,23 @@
-add_executable(Embedding_Test Embedding_Test.cpp)
+set(CMAKE_BUILD_TYPE Debug)
 
-target_link_libraries(Embedding_Test PUBLIC embedding)
+add_executable(E2E_test
+        E2E_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../kvstore.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/../skiplist.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../sstable.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../bloom.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../MurmurHash3.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../utils.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../sstablehead.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../embedding/embedding.cc
+)
 
-include_directories(${CMAKE_SOURCE_DIR})
-add_executable(E2E_test E2E_test.cpp
-        ../kvstore_api.h
-        ../kvstore.h
-        ../kvstore.cc
-        ../skiplist.cpp
-        ../skiplist.h
-        ../sstable.cpp
-        ../sstable.h
-        ../bloom.cpp
-        ../bloom.h
-        ../MurmurHash3.h
-        ../utils.h
-        ../test.h
-        ../sstablehead.cpp
-        ../sstablehead.h)
+target_link_libraries(E2E_test PUBLIC embedding llama)
 
-target_link_libraries(E2E_test PUBLIC embedding)
+
+target_include_directories(E2E_test PUBLIC
+        ${CMAKE_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/../third_party/llama.cpp/common
+        ${CMAKE_SOURCE_DIR}/../third_party/llama.cpp/include
+)
+

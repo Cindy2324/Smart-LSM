@@ -32,8 +32,8 @@ private:
     std::unordered_map<uint64_t, std::vector<float>> vectorStore;
 
     const int m_L = 6;
-    const int M = 6;
-    const int M_max = 8;
+    const int M = 10;
+    const int M_max = 15;
     int max_level = -1;
     uint64_t entry_point = UINT64_MAX;
     const static int efConstruction = 30;

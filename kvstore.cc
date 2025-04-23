@@ -104,6 +104,7 @@ void KVStore::insert_hnsw_node(const std::uint64_t& key, const std::vector<float
      }
 
      for (int l = std::min(level, max_level); l >= 0; --l) {
+         hnsw_levels[l][key] = node;
          auto neighbors = search_layer(ep, vec, l, efConstruction);
          std::vector<std::pair<float, uint64_t>> scored;
          for (uint64_t nid : neighbors)
@@ -137,7 +138,6 @@ void KVStore::insert_hnsw_node(const std::uint64_t& key, const std::vector<float
                  far_node_neighbors.erase(std::remove(far_node_neighbors.begin(), far_node_neighbors.end(), neighbor), far_node_neighbors.end());
              }
          }
-         hnsw_levels[l][key] = node;
          ep = selected.empty() ? ep : selected[0];
      }
 }
@@ -820,6 +820,10 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
         if (value != DEL) {
             result.push_back({key, value});
         }
+    }
+    //不满 k 个的要补齐 k 个
+    while (result.size() < k) {
+        result.push_back({UINT64_MAX, ""}); // 填充一个无效的结果
     }
     return result;
 }

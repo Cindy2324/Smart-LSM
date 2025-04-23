@@ -9,7 +9,11 @@
 #include <string>
 #include <fstream>
 #include <chrono>
-
+#include <chrono>
+// double g_put_embedding_time = 0.0;
+// double g_search_embedding_time = 0.0;
+// extern double g_put_embedding_time;
+// extern double g_search_embedding_time;
 
 std::vector<std::string> read_file(std::string filename) {
 	auto start = std::chrono::high_resolution_clock::now();
@@ -82,7 +86,7 @@ private:
 		auto start_knn = std::chrono::high_resolution_clock::now();
 		int idx = 0, k = 3;
 		for (i = 0; i < max; ++i) {
-			auto res = store.search_knn(test_text[i], k);
+			auto res = store.search_knn_hnsw(test_text[i], k);
 			for (auto j : res) {
                 if(store.get(j.first) != j.second) {
                     std::cerr << "TEST Error @" << __FILE__ << ":" << __LINE__;
