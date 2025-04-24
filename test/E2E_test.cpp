@@ -10,10 +10,8 @@
 #include <fstream>
 #include <chrono>
 #include <chrono>
-// double g_put_embedding_time = 0.0;
-// double g_search_embedding_time = 0.0;
-// extern double g_put_embedding_time;
-// extern double g_search_embedding_time;
+extern double put_embedding_time;
+extern double search_embedding_time;
 
 std::vector<std::string> read_file(std::string filename) {
 	auto start = std::chrono::high_resolution_clock::now();
@@ -67,7 +65,7 @@ private:
 			store.put(i, trimmed_text[i]);
 		}
 		auto end_storage = std::chrono::high_resolution_clock::now();
-		std::cout << "Data storage time: " << std::chrono::duration<double>(end_storage - start_storage).count() << " seconds." << std::endl;
+		std::cout << "Data storage time: " << std::chrono::duration<double>(end_storage - start_storage).count() - put_embedding_time << " seconds." << std::endl;
 
 		auto start_retrieval = std::chrono::high_resolution_clock::now();
 		for (i = 0; i < max; ++i)
@@ -98,7 +96,7 @@ private:
 			}
 		}
 		auto end_knn = std::chrono::high_resolution_clock::now();
-		std::cout << "KNN search time: " << std::chrono::duration<double>(end_knn - start_knn).count() << " seconds." << std::endl;
+		std::cout << "KNN search time: " << std::chrono::duration<double>(end_knn - start_knn).count() - search_embedding_time << " seconds." << std::endl;
 
 		auto phase_with_tolerance = [this](double tolerance = 0.03) {
 			// Report

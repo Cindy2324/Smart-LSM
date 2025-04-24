@@ -31,7 +31,7 @@ private:
 
     std::unordered_map<uint64_t, std::vector<float>> vectorStore;
 
-    const int m_L = 6;
+    const int m_L = 5;
     const int M = 10;
     const int M_max = 15;
     int max_level = -1;
@@ -78,6 +78,8 @@ public:
         static std::uniform_real_distribution<> dis(0.0, 1.0);
         double randValue = std::max(dis(gen), 1e-10); // 防止 log(0)
         int level = static_cast<int>(-std::log(randValue) * m_L);
+        //double randValue = dis(gen);
+        //int level = static_cast<int>(randValue * m_L);
         return std::min(level, m_L); // 设置最大层数为 m_L
     }
 

@@ -1,8 +1,0 @@
-# ninja log v6
-1	1333	1745322107651699201	CMakeFiles/E2E_test.dir/E2E_test.o	6fc47196334f5412
-2	928	1745322107653121668	CMakeFiles/E2E_test.dir/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/sstablehead.o	1d4bd293395d849c
-2	917	1745322107652390236	CMakeFiles/E2E_test.dir/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/skiplist.o	dc16009f8f792d90
-2	594	1745322107652878285	CMakeFiles/E2E_test.dir/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/bloom.o	9cdcc1bf1124b6f3
-2	1048	1745322107652627876	CMakeFiles/E2E_test.dir/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/sstable.o	6cdaa2263dc253a5
-1	109	1745326474143801327	build.ninja	a249e86a663cba60
-24	2094	1745384023661613418	CMakeFiles/E2E_test.dir/E2E_test.o	6fc47196334f5412

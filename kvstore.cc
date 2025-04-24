@@ -19,6 +19,8 @@
 
 static const std::string DEL = "~DELETED~";
 const uint32_t MAXSIZE = 2 * 1024 * 1024;
+double put_embedding_time = 0.0;
+double search_embedding_time = 0.0;
 
 struct poi {
     int sstableId; // vector中第几个sstable
@@ -186,7 +188,10 @@ void KVStore::put(uint64_t key, const std::string &val) {
         compaction();
         s->insert(key, val);
     }
+    auto start = std::chrono::high_resolution_clock::now();
     std::vector<float> vector = embedding_single(val);
+    auto end = std::chrono::high_resolution_clock::now();
+    put_embedding_time += std::chrono::duration<double>(end - start).count();
     vectorStore[key] = vector;
     insert_hnsw_node(key, vector);
 }
@@ -672,7 +677,10 @@ std::string KVStore::fetchString(std::string file, int startOffset, uint32_t len
 //该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::string query, int k) {
     // 将查询字符串转化为向量
+    auto start = std::chrono::high_resolution_clock::now();
     std::vector<float> query_vector = embedding_single(query);
+    auto end = std::chrono::high_resolution_clock::now();
+    search_embedding_time += std::chrono::duration<double>(end - start).count();
     if (query_vector.empty()) {
         std::cerr << "Failed to embed the query" << std::endl;
         return {};
@@ -772,11 +780,13 @@ std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<fl
             // 更新候选队列
             if ((int)top_candidates.size() < ef) {
                 top_candidates.emplace(sim, neighbor);
-            } else if (sim > top_candidates.top().first) {
+            }
+            else if ((int)top_candidates.size() == efConstruction && sim < top_candidates.top().first)
+                continue;
+            else if (sim > top_candidates.top().first) {
                 top_candidates.pop();
                 top_candidates.emplace(sim, neighbor);
             }
-
             // 将邻居加入BFS队列
             bfs_queue.push(neighbor);
         }
@@ -794,7 +804,10 @@ std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<fl
 
 //该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std::string query, int k) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::vector<float> query_vec = embedding_single(query);
+    auto end = std::chrono::high_resolution_clock::now();
+    search_embedding_time += std::chrono::duration<double>(end - start).count();
     if (query_vec.empty()) {
         std::cerr << "Failed to embed the query" << std::endl;
         return {};
@@ -827,3 +840,20 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
     }
     return result;
 }
+
+// int KVStore::searchLayersGreedy( &vec, int epid, int fromLevel, int toLevel) const {
+//     int ep = epid;
+//     for (int L = fromLevel; L >= toLevel; --L) {
+//         bool changed = true;
+//         while (changed) {
+//             changed = false;
+//             for (int nb : nodes[ep].neighbors[L]) {
+//                 if (vec.getCossim(nb) > vec.getCossim(ep)) {
+//                     ep      = nb;
+//                     changed = true;
+//                 }
+//             }
+//         }
+//     }
+//     return ep;
+// }

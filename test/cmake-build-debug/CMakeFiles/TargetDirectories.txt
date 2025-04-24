@@ -1,3 +1,0 @@
-/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/E2E_test.dir
-/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/rebuild_cache.dir
