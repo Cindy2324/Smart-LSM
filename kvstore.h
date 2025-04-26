@@ -14,9 +14,13 @@
 #include <map>
 #include <set>
 
+// struct HNSWNode {
+//     uint64_t id;
+//     std::vector<uint64_t> neighbors;
+// };
 struct HNSWNode {
-    uint64_t id;
-    std::vector<uint64_t> neighbors;
+    uint64_t key;
+    std::unordered_map<int, std::vector<uint64_t>> neighbor;
 };
 
 class KVStore : public KVStoreAPI {
@@ -38,7 +42,8 @@ private:
     uint64_t entry_point = UINT64_MAX;
     const static int efConstruction = 30;
 
-    std::vector<std::unordered_map<uint64_t, HNSWNode>> hnsw_levels;
+    //std::vector<std::unordered_map<uint64_t, HNSWNode>> hnsw_levels;
+    std::unordered_map<uint64_t, HNSWNode> nodes;
 
 public:
     KVStore(const std::string &dir);
@@ -64,7 +69,7 @@ public:
 
     std::vector<std::pair<std::uint64_t, std::string>> search_knn(std::string query, int k);
 
-    float cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2);
+    float cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) const;
 
     void loadVectorsFromSSTables();
 
@@ -84,4 +89,7 @@ public:
     }
 
     std::vector<std::pair<std::uint64_t, std::string>> search_knn_hnsw(std::string query, int k);
+
+    uint64_t searchLayersGreedy(uint64_t epid, const std::vector<float> &vec, int fromLevel, int toLevel) const;
+
 };
