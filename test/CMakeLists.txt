@@ -9,6 +9,8 @@ add_executable(E2E_test
         ${CMAKE_CURRENT_SOURCE_DIR}/../MurmurHash3.h
         ${CMAKE_CURRENT_SOURCE_DIR}/../utils.h
         ${CMAKE_CURRENT_SOURCE_DIR}/../sstablehead.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../hnsw_index.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../hnsw_index.h
         ${CMAKE_CURRENT_SOURCE_DIR}/../embedding/embedding.cc
 )
 

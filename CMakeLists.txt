@@ -9,17 +9,17 @@ set(CMAKE_BUILD_TYPE Debug)
 add_executable(correctness correctness.cc kvstore_api.h kvstore.h
         kvstore.cc skiplist.cpp skiplist.h sstable.cpp sstable.h
         bloom.cpp bloom.h MurmurHash3.h utils.h test.h
-        sstablehead.cpp sstablehead.h)
+        sstablehead.cpp sstablehead.h hnsw_index.cpp hnsw_index.h)
 
 add_executable(persistence persistence.cc kvstore_api.h kvstore.h kvstore.cc
         skiplist.cpp skiplist.h sstable.cpp sstable.h
         bloom.cpp bloom.h MurmurHash3.h utils.h test.h
-        sstablehead.cpp sstablehead.h)
+        sstablehead.cpp sstablehead.h hnsw_index.cpp hnsw_index.h)
 
 add_executable(efficiency efficiency.cc kvstore_api.h kvstore.h kvstore.cc
         skiplist.cpp skiplist.h sstable.cpp sstable.h
         bloom.cpp bloom.h MurmurHash3.h utils.h test.h
-        sstablehead.cpp sstablehead.h)
+        sstablehead.cpp sstablehead.h hnsw_index.cpp hnsw_index.h)
 
 
 add_subdirectory(third_party/llama.cpp)
