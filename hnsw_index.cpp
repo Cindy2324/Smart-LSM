@@ -1,5 +1,6 @@
 
 #include "hnsw_index.h"
+#include "kvstore.h"
 #include <cstdlib>
 #include <cmath>
 #include <limits>

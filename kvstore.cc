@@ -645,8 +645,8 @@ float KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector<
 }
 
 
-std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = efConstruction) {
-    hnsw_index.search_layer(*this, ep_id, query_vec, level, ef);
+std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef) {
+    return hnsw_index.search_layer(*this, ep_id, query_vec, level, ef);
 }
 
 //该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。

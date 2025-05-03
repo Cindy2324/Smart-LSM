@@ -1,11 +1,10 @@
-
 #pragma once
-#include "kvstore.h"
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
 #include <random>
 
+class KVStore;
 
 class HNSWIndex {
 public:
@@ -15,7 +14,7 @@ public:
 
     void insertNode(KVStore& store, uint64_t key, const std::vector<float>& vec);
     std::vector<uint64_t> search_layer(KVStore& store, uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = efConstruction);
-    void::reset() {
+    void reset() {
         nodes.clear();
         max_level = -1;
         entry_point = UINT64_MAX;
