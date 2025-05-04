@@ -55,6 +55,7 @@ public:
     float cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) const;
     void loadVectorsFromSSTables();
     void load_embedding_from_disk(const std::string &data_root);
+    void save_hnsw_index_to_disk(const std::string &hnsw_data_root);
     void insert_hnsw_node(const std::uint64_t& key, const std::vector<float>& vec);
     std::vector<uint64_t> search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = HNSWIndex::efConstruction);
     std::vector<std::pair<std::uint64_t, std::string>> search_knn_hnsw(std::string query, int k);

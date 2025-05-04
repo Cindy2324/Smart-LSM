@@ -13,16 +13,19 @@ static uint64_t ID = 0;
 
 class HNSWIndex {
 public:
+    struct HNSWNode {
+        uint64_t key;
+        std::unordered_map<int, std::vector<uint64_t>> neighbor;
+    };
     HNSWIndex();
-
     ~HNSWIndex();
-
     void insertNode(KVStore& store, uint64_t key, const std::vector<float>& vec);
     std::vector<uint64_t> search_layer(KVStore& store, uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef);
     void reset();
     void del(uint64_t key);
     void append_embeddings_to_disk(const std::map<uint64_t, std::vector<float>> &batch);
-
+    void save_hnsw_index_to_disk(const std::string &hnsw_data_root);
+    std::unordered_map<uint64_t, HNSWNode> nodes;
     int m_L = 5;
     int M = 10;
     int M_max = 15;
@@ -33,13 +36,10 @@ public:
 
     const uint64_t dim = 768;
 private:
-    struct HNSWNode {
-        uint64_t key;
-        std::unordered_map<int, std::vector<uint64_t>> neighbor;
-    };
+
     std::unordered_set<uint64_t> deleted_nodes;
     float cosineSimilarity(const std::vector<float>& a, const std::vector<float>& b) const;
-    std::unordered_map<uint64_t, HNSWNode> nodes;
+
     //std::unordered_map<int, HNSWNode*> node_id_map;
 
     std::string embedding_dir = "./embedding_data";
@@ -74,4 +74,3 @@ private:
     }
 };
 
-int HNSWIndex::efConstruction = 30;

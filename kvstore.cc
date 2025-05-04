@@ -136,6 +136,13 @@ void KVStore::insert_hnsw_node(const std::uint64_t& key, const std::vector<float
     hnsw_index.insertNode(*this, key, vec);
 }
 
+void KVStore::save_hnsw_index_to_disk(const std::string &hnsw_data_root) {
+    if (!utils::dirExists(hnsw_data_root)) {
+        utils::mkdir(hnsw_data_root.c_str());
+    }
+    hnsw_index.save_hnsw_index_to_disk(hnsw_data_root);
+
+}
 
 KVStore::~KVStore() {
     sstable ss(s);
@@ -665,6 +672,7 @@ std::string KVStore::fetchString(std::string file, int startOffset, uint32_t len
 
     return std::string(strBuf, strBuf + bytesRead);
 }
+
 //该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::string query, int k) {
     // 将查询字符串转化为向量
@@ -755,8 +763,8 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
 
     auto ef_results = search_layer(ep, query_vec, 0, hnsw_index.efConstruction);
     std::vector<std::pair<float, uint64_t>> scored;
-    for (uint64_t key : ef_results)
-        scored.emplace_back(cosineSimilarity(query_vec, vectorStore[key]), key);
+    for (uint64_t id : ef_results)
+        scored.emplace_back(cosineSimilarity(query_vec, vectorStore[hnsw_index.nodes[id].key]), hnsw_index.nodes[id].key);
 
     std::partial_sort(scored.begin(), scored.begin() + std::min(k, (int)scored.size()), scored.end(), std::greater<>());
 

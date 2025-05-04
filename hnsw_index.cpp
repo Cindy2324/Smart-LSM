@@ -6,6 +6,8 @@
 #include <queue>
 #include <algorithm>
 
+int HNSWIndex::efConstruction = 30;
+
 HNSWIndex::HNSWIndex() {
     init_embedding_file();
 }
@@ -40,6 +42,10 @@ void HNSWIndex::append_embeddings_to_disk(const std::map<uint64_t, std::vector<f
     ofs.close();
 }
 
+void HNSWIndex::save_hnsw_index_to_disk(const std::string &hnsw_data_root) {
+
+}
+
 float HNSWIndex::cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) const {
     double dotProduct = 0.0;
     double magnitudeV1 = 0.0;
@@ -66,55 +72,56 @@ float HNSWIndex::cosineSimilarity(const std::vector<float>& v1, const std::vecto
 
 void HNSWIndex::insertNode(KVStore& store, uint64_t key, const std::vector<float>& vec) {
     int level = random_level();
-    nodes[ID++] = HNSWNode{key, {}};
+    uint64_t id = ID;
+    ID++;
+    nodes[id] = HNSWNode{key, {}};
     if (entry_point == UINT64_MAX) { // First node
-        entry_point = key;
+        entry_point = id;
         max_level = level;
         return;
     }
 
      // if not the first node
-     uint64_t ep = entry_point;
-      for (int l = max_level; l > level; --l) {
-          auto ep_neighbors = search_layer(store, ep, vec, l, 1);
+    uint64_t ep = entry_point;
+    for (int l = max_level; l > level; --l) {
+        auto ep_neighbors = search_layer(store, ep, vec, l, 1);
           if (!ep_neighbors.empty()) ep = ep_neighbors[0];
-      }
-     //uint64_t ep = searchLayersGreedy(entry_point, vec, max_level, level + 1);
+    }
+    //uint64_t ep = searchLayersGreedy(entry_point, vec, max_level, level + 1);
 
-     for (int l = std::min(level, max_level); l >= 0; --l) {
-         auto neighbors = search_layer(store, ep, vec, l, efConstruction);
-         std::vector<std::pair<float, uint64_t>> scored;
-         for (uint64_t nid : neighbors)
-             scored.emplace_back(cosineSimilarity(vec, store.vectorStore[nid]), nid);
-         std::partial_sort(scored.begin(), scored.begin() + std::min(M, (int)scored.size()), scored.end(), std::greater<>());
+    for (int l = std::min(level, max_level); l >= 0; --l) {
+        auto neighbors = search_layer(store, ep, vec, l, efConstruction);
+        std::vector<std::pair<float, uint64_t>> scored;
+        for (uint64_t nid : neighbors)
+            scored.emplace_back(cosineSimilarity(vec, store.vectorStore[nodes[nid].key]), nid);
+        std::partial_sort(scored.begin(), scored.begin() + std::min(M, (int)scored.size()), scored.end(), std::greater<>());
 
-         std::vector<uint64_t> selected;
-         selected.reserve(std::min(M, (int)scored.size()));
-         for (int i = 0; i < std::min(M, (int)scored.size()); ++i)
-             selected.push_back(scored[i].second);
+        std::vector<uint64_t> selected;
+        selected.reserve(std::min(M, (int)scored.size()));
+        for (int i = 0; i < std::min(M, (int)scored.size()); ++i)
+            selected.push_back(scored[i].second);
 
-         for (uint64_t neighbor : selected) {
-             nodes[neighbor].neighbor[l].push_back(key);
-             nodes[key].neighbor[l].push_back(neighbor);
+        for (uint64_t neighbor : selected) {
+            nodes[neighbor].neighbor[l].push_back(id);
+            nodes[id].neighbor[l].push_back(neighbor);
 
-             if (nodes[neighbor].neighbor[l].size()> M_max) {
-                 auto &neigh_vecs = nodes[neighbor].neighbor[l];
-                 std::vector<std::pair<float, uint64_t>> dist_list;
-                 for (uint64_t nid : neigh_vecs)
-                     dist_list.emplace_back(cosineSimilarity(store.vectorStore[nid], store.vectorStore[neighbor]), nid);
-                 std::partial_sort(dist_list.begin(), dist_list.begin() + M_max, dist_list.end(), std::greater<>());
-                 uint64_t far_node = dist_list.back().second;
+            if (nodes[neighbor].neighbor[l].size()> M_max) {
+                auto &neigh_vecs = nodes[neighbor].neighbor[l];
+                std::vector<std::pair<float, uint64_t>> dist_list;
+                for (uint64_t nid : neigh_vecs)
+                    dist_list.emplace_back(cosineSimilarity(store.vectorStore[nodes[nid].key], store.vectorStore[nodes[neighbor].key]), nid);
+                std::partial_sort(dist_list.begin(), dist_list.begin() + M_max, dist_list.end(), std::greater<>());
+                uint64_t far_node = dist_list.back().second;
 
-                 // 从neighbor的邻居列表中移除far_node
-                 neigh_vecs.erase(std::remove(neigh_vecs.begin(), neigh_vecs.end(), far_node), neigh_vecs.end());
-                 // 从far_node的邻居列表中移除neighbor
-                 auto &far_node_neighbors = nodes[far_node].neighbor[l];
-                 far_node_neighbors.erase(std::remove(far_node_neighbors.begin(), far_node_neighbors.end(), neighbor), far_node_neighbors.end());
-             }
-         }
-         ep = selected.empty() ? ep : selected[0];
-     }
-     //node_id_map[ID++] = &nodes[key];
+                // 从neighbor的邻居列表中移除far_node
+                neigh_vecs.erase(std::remove(neigh_vecs.begin(), neigh_vecs.end(), far_node), neigh_vecs.end());
+                // 从far_node的邻居列表中移除neighbor
+                auto &far_node_neighbors = nodes[far_node].neighbor[l];
+                far_node_neighbors.erase(std::remove(far_node_neighbors.begin(), far_node_neighbors.end(), neighbor), far_node_neighbors.end());
+            }
+        }
+        ep = selected.empty() ? ep : selected[0];
+    }
 }
 
 std::vector<uint64_t> HNSWIndex::search_layer(KVStore& store, uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef) {
@@ -125,10 +132,10 @@ std::vector<uint64_t> HNSWIndex::search_layer(KVStore& store, uint64_t ep_id, co
     std::unordered_map<uint64_t, float> sim_cache; // 缓存相似度计算结果
 
     // 检查起始节点是否存在
-    if (store.vectorStore.find(ep_id) == store.vectorStore.end()) return {};
+    if (store.vectorStore.find(nodes[ep_id].key) == store.vectorStore.end()) return {};
 
     // 初始化
-    float ep_sim = cosineSimilarity(store.vectorStore[ep_id], query_vec);
+    float ep_sim = cosineSimilarity(store.vectorStore[nodes[ep_id].key], query_vec);
     top_candidates.emplace(ep_sim, ep_id);
     bfs_queue.push(ep_id);
     visited.insert(ep_id);
@@ -145,14 +152,14 @@ std::vector<uint64_t> HNSWIndex::search_layer(KVStore& store, uint64_t ep_id, co
             visited.insert(neighbor);
 
             // 检查邻居节点是否存在
-            if (store.vectorStore.find(neighbor) == store.vectorStore.end()) continue;
+            if (store.vectorStore.find(nodes[neighbor].key) == store.vectorStore.end()) continue;
 
             // 计算相似度（优先从缓存中读取）
             float sim;
             if (sim_cache.count(neighbor)) {
                 sim = sim_cache[neighbor];
             } else {
-                sim = cosineSimilarity(store.vectorStore[neighbor], query_vec);
+                sim = cosineSimilarity(store.vectorStore[nodes[neighbor].key], query_vec);
                 sim_cache[neighbor] = sim;
             }
 
