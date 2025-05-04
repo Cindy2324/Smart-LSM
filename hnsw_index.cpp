@@ -1,4 +1,3 @@
-
 #include "hnsw_index.h"
 #include "kvstore.h"
 #include <cstdlib>
@@ -7,31 +6,38 @@
 #include <queue>
 #include <algorithm>
 
-HNSWIndex::HNSWIndex() {}
+HNSWIndex::HNSWIndex() {
+    init_embedding_file();
+}
 HNSWIndex::~HNSWIndex() {
     nodes.clear();
 }
 
-void HNSWIndex::del(uint64_t key) {
-    // 从 HNSW 图中移除该节点
-    if (nodes.count(key)) {
-        for (auto &[level, neighbors] : nodes[key].neighbor) {
-            for (uint64_t neighbor : neighbors) {
-                auto &nb_list = nodes[neighbor].neighbor[level];
-                nb_list.erase(std::remove(nb_list.begin(), nb_list.end(), key), nb_list.end());
-            }
-        }
-        nodes.erase(key);
-    }
+void HNSWIndex::reset() {
+    nodes.clear();
+    entry_point = UINT64_MAX;
+    max_level = -1;
+    initialized = false;
+}
 
-    // 特殊处理：若 entrypoint 就是这个 key，需要重新设置 entrypoint
-    if (entry_point == key) {
-        entry_point = UINT64_MAX;
-        for (const auto &pair : nodes) {
-            entry_point = pair.first;
-            break;
+void HNSWIndex::del(uint64_t key) {
+    for (auto& [id, node_ptr] : nodes) {
+        if (node_ptr.key == key) {
+            deleted_nodes.insert(id);
         }
     }
+}
+
+void HNSWIndex::append_embeddings_to_disk(const std::map<uint64_t, std::vector<float>> &batch)  {
+    std::ofstream ofs(embedding_file, std::ios::binary | std::ios::app);
+    for (const auto &[key, vec] : batch) {
+        if (vec.size() != dim) {
+            throw std::runtime_error("Embedding dimension mismatch");
+        }
+        ofs.write(reinterpret_cast<const char*>(&key), sizeof(uint64_t));
+        ofs.write(reinterpret_cast<const char*>(vec.data()), sizeof(float) * dim);
+    }
+    ofs.close();
 }
 
 float HNSWIndex::cosineSimilarity(const std::vector<float>& v1, const std::vector<float>& v2) const {
@@ -60,9 +66,7 @@ float HNSWIndex::cosineSimilarity(const std::vector<float>& v1, const std::vecto
 
 void HNSWIndex::insertNode(KVStore& store, uint64_t key, const std::vector<float>& vec) {
     int level = random_level();
-    if (nodes.find(key) == nodes.end()) {
-        nodes[key] = HNSWNode{key, {}};
-    }
+    nodes[ID++] = HNSWNode{key, {}};
     if (entry_point == UINT64_MAX) { // First node
         entry_point = key;
         max_level = level;
@@ -110,6 +114,7 @@ void HNSWIndex::insertNode(KVStore& store, uint64_t key, const std::vector<float
          }
          ep = selected.empty() ? ep : selected[0];
      }
+     //node_id_map[ID++] = &nodes[key];
 }
 
 std::vector<uint64_t> HNSWIndex::search_layer(KVStore& store, uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef) {
@@ -171,3 +176,24 @@ std::vector<uint64_t> HNSWIndex::search_layer(KVStore& store, uint64_t ep_id, co
     std::reverse(result.begin(), result.end()); // 按相似度从高到低排序
     return result;
 }
+
+// // 删除节点的函数
+// 从 HNSW 图中移除该节点
+// if (nodes.count(key)) {
+//     for (auto &[level, neighbors] : nodes[key].neighbor) {
+//         for (uint64_t neighbor : neighbors) {
+//             auto &nb_list = nodes[neighbor].neighbor[level];
+//             nb_list.erase(std::remove(nb_list.begin(), nb_list.end(), key), nb_list.end());
+//         }
+//     }
+//     nodes.erase(key);
+// }
+//
+// // 特殊处理：若 entrypoint 就是这个 key，需要重新设置 entrypoint
+// if (entry_point == key) {
+//     entry_point = UINT64_MAX;
+//     for (const auto &pair : nodes) {
+//         entry_point = pair.first;
+//         break;
+//     }
+// }

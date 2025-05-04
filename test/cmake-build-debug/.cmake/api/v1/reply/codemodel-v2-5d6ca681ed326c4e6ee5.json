@@ -1,0 +1,101 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Project",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "E2E_test::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-E2E_test-Debug-b54039461fa4eabc9b82.json",
+					"name" : "E2E_test",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "HNSW_Delete_Test::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-HNSW_Delete_Test-Debug-5066a8fcd2def5a7c201.json",
+					"name" : "HNSW_Delete_Test",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "HNSW_Persistent_Test_Phase1::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-HNSW_Persistent_Test_Phase1-Debug-c35c35485c35eec096f3.json",
+					"name" : "HNSW_Persistent_Test_Phase1",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "HNSW_Persistent_Test_Phase2::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-HNSW_Persistent_Test_Phase2-Debug-cd02b52b29fbbc674c2a.json",
+					"name" : "HNSW_Persistent_Test_Phase2",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "Vector_Persistent_Test_Phase1::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Vector_Persistent_Test_Phase1-Debug-6ee6289004ac34ff8225.json",
+					"name" : "Vector_Persistent_Test_Phase1",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "Vector_Persistent_Test_Phase2::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Vector_Persistent_Test_Phase2-Debug-765e0163ca0423b7e4ed.json",
+					"name" : "Vector_Persistent_Test_Phase2",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug",
+		"source" : "/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

@@ -1,4 +1,4 @@
-#include "kvstore.h"
+#include "../kvstore.h"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -17,7 +17,7 @@ int main() {
   KVStore store("data/");
 
   // TODO: uncomment this line when you have implemented the function
-  // store.load_embedding_from_disk("embedding_data/");
+  store.load_embedding_from_disk("embedding_data/");
 
   bool pass = true;
 

@@ -1,0 +1,8 @@
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/E2E_test.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/Vector_Persistent_Test_Phase1.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/Vector_Persistent_Test_Phase2.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/HNSW_Persistent_Test_Phase1.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/HNSW_Persistent_Test_Phase2.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/HNSW_Delete_Test.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/cindy/Desktop/ads/practice/lab-lsm-tree-handout/test/cmake-build-debug/CMakeFiles/rebuild_cache.dir

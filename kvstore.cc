@@ -3,7 +3,7 @@
 #include "skiplist.h"
 #include "sstable.h"
 #include "utils.h"
-#include "embedding/embedding.h"
+//#include "embedding/embedding.h"
 #include <cmath>
 
 #include <algorithm>
@@ -37,7 +37,7 @@ struct cmpPoi {
     }
 };
 
-KVStore::KVStore(const std::string &dir) : KVStoreAPI(dir) // read from sstables
+KVStore::KVStore(const std::string &dir) : KVStoreAPI(dir), tombstone(static_cast<int>(dim), std::numeric_limits<float>::max()) // read from sstables
 {
     for (totalLevel = 0;; ++totalLevel) {
         std::string path = dir + "/level-" + std::to_string(totalLevel) + "/";
@@ -56,8 +56,62 @@ KVStore::KVStore(const std::string &dir) : KVStoreAPI(dir) // read from sstables
             TIME = std::max(TIME, cur.getTime()); // 更新时间戳
         }
     }
-    loadVectorsFromSSTables();
+    //loadVectorsFromSSTables();
 }
+
+void KVStore::load_embedding_from_disk(const std::string &data_root) {
+    std::string filename = data_root + "/embedding_vectors.bin";
+    std::ifstream in(filename, std::ios::binary | std::ios::ate);
+    if (!in.is_open()) {
+        std::cerr << "Failed to open embedding vector file: " << filename << std::endl;
+        return;
+    }
+
+    std::streampos file_size = in.tellg();
+    if (file_size < 8) {
+        std::cerr << "File too small to contain dim" << std::endl;
+        return;
+    }
+
+    // 首先读取 dim（前 8 个字节）
+    in.seekg(0, std::ios::beg);
+    uint64_t dim_read = 0;
+    in.read(reinterpret_cast<char*>(&dim_read), sizeof(uint64_t));
+    dim = dim_read;  // 设置类成员 dim
+    const size_t block_size = sizeof(uint64_t) + sizeof(float) * dim;
+
+    // reverse scan from end of file
+    std::unordered_map<uint64_t, std::vector<float>> temp_store;
+    std::set<uint64_t> seen_keys;
+
+    size_t total_blocks = (static_cast<std::streamoff>(file_size) - 8) / block_size;
+    for (int64_t i = total_blocks - 1; i >= 0; --i) {
+        std::streampos pos = 8 + i * block_size;
+        in.seekg(pos);
+
+        uint64_t key;
+        in.read(reinterpret_cast<char*>(&key), sizeof(uint64_t));
+
+        if (seen_keys.count(key)) continue; // 已经找到过该 key，跳过
+
+        std::vector<float> vec(dim);
+        in.read(reinterpret_cast<char*>(vec.data()), sizeof(float) * dim);
+
+        // 检查是否是 tombstone
+        bool is_deleted = std::all_of(vec.begin(), vec.end(), [](float x) {
+            return x == std::numeric_limits<float>::max();
+        });
+
+        if (!is_deleted) {
+            vectorStore[key] = vec;
+        }
+
+        seen_keys.insert(key);
+    }
+
+    in.close();
+}
+
 void KVStore::loadVectorsFromSSTables() {
     for (int level = 0; level <= totalLevel; ++level) {
         for (sstablehead it : sstableIndex[level]) {
@@ -67,7 +121,7 @@ void KVStore::loadVectorsFromSSTables() {
             for (size_t i = 0; i < ss.getCnt(); ++i) {
                 uint64_t key = ss.getKey(i);
                 std::string value = ss.getData(i);
-                std::vector<float> vector = embedding_single(value);
+                std::vector<float> vector = get_embedding_for_value(value);
                 if (vector.empty()) {
                     std::cerr << "Failed to embed the value" << std::endl;
                     continue;
@@ -94,6 +148,20 @@ KVStore::~KVStore() {
     }
     ss.putFile(ss.getFilename().data());
     compaction(); // 从0层开始尝试合并
+
+    std::map<uint64_t, std::vector<float>> batch;
+    for (int i = 0; i < ss.getHead().getCnt(); ++i) {
+        uint64_t key = ss.getHead().getKey(i);
+        //fprintf(stderr, "%llu\n", static_cast<unsigned long long>(key));
+        std::string value = ss.getData(i);
+
+        auto it = vectorStore.find(key);
+        if (it != vectorStore.end()) {
+            batch[key] = it->second;
+        }
+    }
+    hnsw_index.append_embeddings_to_disk(batch);
+
     vectorStore.clear();
 }
 
@@ -102,6 +170,7 @@ KVStore::~KVStore() {
  * No return values for simplicity.
  */
 void KVStore::put(uint64_t key, const std::string &val) {
+    //fprintf(stderr, "%llu\n", static_cast<unsigned long long>(key));
     uint32_t nxtsize = s->getBytes();
     std::string res = s->search(key);
     if (!res.length()) {
@@ -123,12 +192,28 @@ void KVStore::put(uint64_t key, const std::string &val) {
         addsstable(ss, 0); // 加入缓存
         ss.putFile(url.data()); // 加入磁盘
         compaction();
+        //fprintf(stderr, "%llu\n", static_cast<unsigned long long>(key));
+        std::map<uint64_t, std::vector<float>> batch;
+        for (int i = 0; i < ss.getHead().getCnt(); ++i) {
+            uint64_t key = ss.getHead().getKey(i);
+            //fprintf(stderr, "%llu\n", static_cast<unsigned long long>(key));
+            std::string value = ss.getData(i);
+
+            auto it = vectorStore.find(key);
+            if (it != vectorStore.end()) {
+                batch[key] = it->second;
+            }
+        }
+        hnsw_index.append_embeddings_to_disk(batch);
         s->insert(key, val);
     }
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<float> vector = embedding_single(val);
+    std::vector<float> vector = get_embedding_for_value(val);
     auto end = std::chrono::high_resolution_clock::now();
     put_embedding_time += std::chrono::duration<double>(end - start).count();
+    if (vectorStore.find(key) != vectorStore.end()) {
+        hnsw_index.del(key);
+    }
     vectorStore[key] = vector;
     insert_hnsw_node(key, vector);
 }
@@ -193,7 +278,7 @@ bool KVStore::del(uint64_t key) {
     if (!res.length())
         return false; // not exist
     put(key, DEL); // put a del marker
-    vectorStore.erase(key);
+    vectorStore[key] = tombstone;
     hnsw_index.del(key);
     return true;
 }
@@ -584,7 +669,7 @@ std::string KVStore::fetchString(std::string file, int startOffset, uint32_t len
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn(std::string query, int k) {
     // 将查询字符串转化为向量
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<float> query_vector = embedding_single(query);
+    std::vector<float> query_vector = get_embedding_for_value(query);
     auto end = std::chrono::high_resolution_clock::now();
     search_embedding_time += std::chrono::duration<double>(end - start).count();
     if (query_vector.empty()) {
@@ -652,7 +737,7 @@ std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<fl
 //该接口接受一个查询字符串和一个整数 k，返回与查询字符串最相近的k个向量的key和value。并且按照向量余弦相似度从高到低的顺序排列。E2E_test.cpp不会因浮点数精度影响结果，之后的测试也会容忍一定的浮点数计算误差。
 std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std::string query, int k) {
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<float> query_vec = embedding_single(query);
+    std::vector<float> query_vec = get_embedding_for_value(query);
     auto end = std::chrono::high_resolution_clock::now();
     search_embedding_time += std::chrono::duration<double>(end - start).count();
 
