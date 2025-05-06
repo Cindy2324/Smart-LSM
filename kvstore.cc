@@ -140,8 +140,15 @@ void KVStore::save_hnsw_index_to_disk(const std::string &hnsw_data_root) {
     if (!utils::dirExists(hnsw_data_root)) {
         utils::mkdir(hnsw_data_root.c_str());
     }
+    //fprintf(stderr,"hi here");
     hnsw_index.save_hnsw_index_to_disk(hnsw_data_root);
-
+}
+void KVStore::load_hnsw_index_from_disk(const std::string &hnsw_data_root) {
+    if (utils::dirExists(hnsw_data_root)) {
+        hnsw_index.load_hnsw_index_to_disk(hnsw_data_root);
+    }
+    std::string data_root = "embedding_data";
+    load_embedding_from_disk(data_root);
 }
 
 KVStore::~KVStore() {
@@ -739,6 +746,7 @@ float KVStore::cosineSimilarity(const std::vector<float>& v1, const std::vector<
 
 
 std::vector<uint64_t> KVStore::search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef) {
+    if (ef == -1) ef = hnsw_index.hnsw_header.efConstruction;
     return hnsw_index.search_layer(*this, ep_id, query_vec, level, ef);
 }
 
@@ -754,14 +762,14 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
         return {};
     }
 
-    uint64_t ep = hnsw_index.entry_point;
-    for (int l = hnsw_index.max_level; l >= 1; --l) {
+    uint64_t ep = hnsw_index.hnsw_header.entry_point;
+    for (int l = hnsw_index.hnsw_header.max_level; l >= 1; --l) {
         auto next = search_layer(ep, query_vec, l, 1);
         if (!next.empty()) ep = next[0];
     }
     //uint64_t ep = searchLayersGreedy(entry_point, query_vec, max_level, 1);
 
-    auto ef_results = search_layer(ep, query_vec, 0, hnsw_index.efConstruction);
+    auto ef_results = search_layer(ep, query_vec, 0, hnsw_index.hnsw_header.efConstruction);
     std::vector<std::pair<float, uint64_t>> scored;
     for (uint64_t id : ef_results)
         scored.emplace_back(cosineSimilarity(query_vec, vectorStore[hnsw_index.nodes[id].key]), hnsw_index.nodes[id].key);

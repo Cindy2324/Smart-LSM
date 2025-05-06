@@ -19,6 +19,7 @@ bool check_result(std::vector<std::pair<std::uint64_t, std::string>> result,
     if (result[i].second == text) {
       return true;
     }
+    //fprintf(stderr, "result[%d]: %s\n", i, result[i].second.c_str());
   }
   return false;
 }
@@ -27,7 +28,7 @@ int main() {
   KVStore store("data/");
 
   // TODO: uncomment this line when you have implemented the function
-  //store.load_hnsw_index_from_disk("hnsw_data/");
+  store.load_hnsw_index_from_disk("hnsw_data/");
 
   int pass = 0;
   int total = 128;

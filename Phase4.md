@@ -173,6 +173,13 @@ struct NodeHeader {
     uint64_t key_of_embedding_vector; // 节点中的向量数据，但是用vector对应的key表示
 };
 ```
+my header.bin：
+```c++
+struct NodeHeader {
+    //uint64_t id;              
+    uint64_t key;
+};
+```
 
 ##### i.bin (i 为层级)
 

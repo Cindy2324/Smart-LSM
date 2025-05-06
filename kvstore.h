@@ -37,7 +37,7 @@ private:
     std::unordered_map<uint64_t, std::vector<float>> vectorStore;
     HNSWIndex hnsw_index;
     friend class HNSWIndex;
-    uint64_t dim = hnsw_index.dim;
+    uint64_t dim = hnsw_index.hnsw_header.dim;
     std::vector<float> tombstone;
 public:
     KVStore(const std::string &dir);
@@ -56,8 +56,9 @@ public:
     void loadVectorsFromSSTables();
     void load_embedding_from_disk(const std::string &data_root);
     void save_hnsw_index_to_disk(const std::string &hnsw_data_root);
+    void load_hnsw_index_from_disk(const std::string &hnsw_data_root);
     void insert_hnsw_node(const std::uint64_t& key, const std::vector<float>& vec);
-    std::vector<uint64_t> search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = HNSWIndex::efConstruction);
+    std::vector<uint64_t> search_layer(uint64_t ep_id, const std::vector<float> &query_vec, int level, int ef = -1);
     std::vector<std::pair<std::uint64_t, std::string>> search_knn_hnsw(std::string query, int k);
     std::vector<float> get_embedding_for_value(const std::string& val) {
         // 打开文件读取 cleaned_text_100k.txt 查找 val
