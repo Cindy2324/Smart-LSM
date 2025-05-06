@@ -771,19 +771,23 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
 
     auto ef_results = search_layer(ep, query_vec, 0, hnsw_index.hnsw_header.efConstruction);
     std::vector<std::pair<float, uint64_t>> scored;
-    for (uint64_t id : ef_results)
+    for (uint64_t id : ef_results) {
+        if (hnsw_index.deleted_nodes.count(id)) continue;
         scored.emplace_back(cosineSimilarity(query_vec, vectorStore[hnsw_index.nodes[id].key]), hnsw_index.nodes[id].key);
-
+    }
     std::partial_sort(scored.begin(), scored.begin() + std::min(k, (int)scored.size()), scored.end(), std::greater<>());
 
     std::vector<std::pair<std::uint64_t, std::string>> result;
-    for (int i = 0; i < std::min(k, (int)scored.size()); ++i) {
+    int i = 0;
+    while (result.size() < k && i < scored.size()) {
         uint64_t key = scored[i].second;
         std::string value = get(key);
         if (value != DEL) {
-            result.push_back({key, value});
+            result.emplace_back(key, value);
         }
+        ++i;
     }
+
     //不满 k 个的要补齐 k 个
     while (result.size() < k) {
         result.push_back({UINT64_MAX, ""}); // 填充一个无效的结果
