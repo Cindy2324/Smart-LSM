@@ -22,11 +22,13 @@ void HNSWIndex::reset() {
 }
 
 void HNSWIndex::del(uint64_t key) {
-    for (auto& [id, node_ptr] : nodes) {
-        if (node_ptr.key == key) {
-            deleted_nodes.insert(id);
-        }
+    // 没找到则忽略
+    if (key_to_ids.find(key) == key_to_ids.end()) {
+        return;
     }
+    uint64_t id = key_to_ids.at(key);
+    deleted_nodes.insert(id);
+    key_to_ids.erase(key);
 }
 
 void HNSWIndex::append_embeddings_to_disk(const std::map<uint64_t, std::vector<float>> &batch)  {
@@ -45,13 +47,15 @@ void HNSWIndex::save_hnsw_index_to_disk(const std::string &hnsw_data_root) {
     std::string global_header_path = hnsw_data_root + "/global_header.bin";
     std::ofstream global_header_out(global_header_path, std::ios::binary);
     global_header_out.write(reinterpret_cast<char*>(&hnsw_header), sizeof(hnsw_header));
-    // char *data = reinterpret_cast<char*>(&hnsw_header);
-    // size_t len = sizeof(hnsw_header);
-    // std::cout << "Raw header bytes: ";
-    // for (size_t i = 0; i < len; ++i) {
-    //     fprintf(stderr, "%02X ", static_cast<unsigned char>(data[i]));
-    // }
-    // std::cout << std::endl;
+    // 写入 key_to_ids 大小
+    uint64_t map_size = key_to_ids.size();
+    global_header_out.write(reinterpret_cast<char*>(&map_size), sizeof(map_size));
+
+    // 依次写入每个 key-value 对
+    for (const auto& [key, id] : key_to_ids) {
+        global_header_out.write(reinterpret_cast<const char*>(&key), sizeof(key));
+        global_header_out.write(reinterpret_cast<const char*>(&id), sizeof(id));
+    }
     global_header_out.close();
 
     std::string deleted_path = hnsw_data_root + "/deleted_nodes.bin";
@@ -88,7 +92,7 @@ void HNSWIndex::save_hnsw_index_to_disk(const std::string &hnsw_data_root) {
             std::string edge_path = node_dir + "/edges/" + std::to_string(level) + ".bin";
             std::ofstream edge_out(edge_path, std::ios::binary);
             uint32_t neighbor_count = neighbors.size();
-            fprintf(stderr, "node_id: %llu, level: %d, neighbor_count: %u\n", static_cast<unsigned long long>(node_id), level, neighbor_count);
+            //fprintf(stderr, "node_id: %llu, level: %d, neighbor_count: %u\n", static_cast<unsigned long long>(node_id), level, neighbor_count);
             edge_out.write(reinterpret_cast<char*>(&neighbor_count), sizeof(uint32_t));
             for (uint64_t neighbor_id : neighbors) {
                 edge_out.write(reinterpret_cast<char*>(&neighbor_id), sizeof(uint64_t));
@@ -103,12 +107,21 @@ void HNSWIndex::load_hnsw_index_to_disk(const std::string &hnsw_data_root) {
     initialized = true;
     nodes.clear();
     deleted_nodes.clear();
+    key_to_ids.clear();
 
     // 1. 加载 global_header.bin
     std::string header_path = hnsw_data_root + "/global_header.bin";
     std::ifstream header_in(header_path, std::ios::binary);
     if (!header_in) throw std::runtime_error("Cannot open global_header.bin");
     header_in.read(reinterpret_cast<char*>(&hnsw_header), sizeof(HNSWGlobalHeader));
+    uint64_t map_size;
+    header_in.read(reinterpret_cast<char*>(&map_size), sizeof(map_size));
+    for (uint64_t i = 0; i < map_size; ++i) {
+        uint64_t key, id;
+        header_in.read(reinterpret_cast<char*>(&key), sizeof(key));
+        header_in.read(reinterpret_cast<char*>(&id), sizeof(id));
+        key_to_ids[key] = id;
+    }
     //fprintf(stderr, "hnsw_header: %u %u %u %u %u %u %llu\n", hnsw_header.M, hnsw_header.M_max, hnsw_header.efConstruction, hnsw_header.m_L, hnsw_header.max_level, hnsw_header.dim, hnsw_header.entry_point);
     header_in.close();
 
@@ -227,6 +240,10 @@ void HNSWIndex::insertNode(KVStore& store, uint64_t key, const std::vector<float
     int level = random_level();
     uint64_t id = ID;
     ID++;
+    if (key_to_ids.count(key) && key_to_ids[key] != id) {
+        deleted_nodes.insert(key_to_ids[key]);
+    }
+    key_to_ids[key]=id;
     nodes[id] = HNSWNode{key, {}};
     if (hnsw_header.entry_point == UINT64_MAX) { // First node
         hnsw_header.entry_point = id;

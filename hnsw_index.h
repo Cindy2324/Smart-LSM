@@ -27,6 +27,9 @@ public:
     void save_hnsw_index_to_disk(const std::string &hnsw_data_root);
     void load_hnsw_index_to_disk(const std::string &hnsw_data_root);
     std::unordered_map<uint64_t, HNSWNode> nodes;
+    std::unordered_map<uint64_t, uint64_t> key_to_ids;
+    std::unordered_set<uint64_t> deleted_nodes;
+
 
     struct HNSWGlobalHeader {
         uint32_t M = 10;                // 参数
@@ -37,7 +40,7 @@ public:
         uint32_t dim = 768;              // 向量维度
         uint64_t entry_point = UINT64_MAX;
     } hnsw_header;
-    std::unordered_set<uint64_t> deleted_nodes;
+
 
 private:
     float cosineSimilarity(const std::vector<float>& a, const std::vector<float>& b) const;

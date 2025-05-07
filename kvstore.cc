@@ -221,15 +221,17 @@ void KVStore::put(uint64_t key, const std::string &val) {
         hnsw_index.append_embeddings_to_disk(batch);
         s->insert(key, val);
     }
-    auto start = std::chrono::high_resolution_clock::now();
-    std::vector<float> vector = get_embedding_for_value(val);
-    auto end = std::chrono::high_resolution_clock::now();
-    put_embedding_time += std::chrono::duration<double>(end - start).count();
-    if (vectorStore.find(key) != vectorStore.end()) {
-        hnsw_index.del(key);
+    // auto start = std::chrono::high_resolution_clock::now();
+    if (val != DEL) {
+        std::vector<float> vector = get_embedding_for_value(val);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // put_embedding_time += std::chrono::duration<double>(end - start).count();
+        if (vectorStore.find(key) != vectorStore.end()) {
+            hnsw_index.del(key);
+        }
+        vectorStore[key] = vector;
+        insert_hnsw_node(key, vector);
     }
-    vectorStore[key] = vector;
-    insert_hnsw_node(key, vector);
 }
 
 /**
@@ -288,11 +290,17 @@ std::string KVStore::get(uint64_t key) //
  * Returns false iff the key is not found.
  */
 bool KVStore::del(uint64_t key) {
+    //fprintf(stderr,"hi Im in");
     std::string res = get(key);
-    if (!res.length())
-        return false; // not exist
+    //fprintf(stderr,"dont here");
+    if (!res.length()) {
+        //fprintf(stderr,"no way");
+        return false;
+    }// not exist
     put(key, DEL); // put a del marker
+    //fprintf(stderr,"just put");
     vectorStore[key] = tombstone;
+    //fprintf(stderr, "hi del-vector");
     hnsw_index.del(key);
     return true;
 }
@@ -782,7 +790,7 @@ std::vector<std::pair<std::uint64_t, std::string>> KVStore::search_knn_hnsw(std:
     while (result.size() < k && i < scored.size()) {
         uint64_t key = scored[i].second;
         std::string value = get(key);
-        if (value != DEL) {
+        if (value != DEL && !hnsw_index.deleted_nodes.count(hnsw_index.key_to_ids[key])) {
             result.emplace_back(key, value);
         }
         ++i;
