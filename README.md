@@ -2,6 +2,7 @@ Smart LSM-tree with Persistent HNSW
 本项目基于传统的 LSM-tree 构建了一个支持高效向量检索的键值存储系统，并集成了 HNSW（Hierarchical Navigable Small World） 图结构，实现了向量索引的持久化、Lazy Delete、修改操作等功能，支持端到端的语义搜索。
 
 # 项目结构：
+```
 .
 ├── src/                  # 项目源代码（KVStore、HNSWIndex等核心组件）
 ├── data/                 # 存储 KV 数据、SSTables、embedding 文件
@@ -12,6 +13,7 @@ Smart LSM-tree with Persistent HNSW
 │   ├── HNSW_Persistent_Test_Phase1.cpp
 │   └── HNSW_Persistent_Test_Phase2.cpp
 └── README.md
+```
 
 Phase 1: 插入、删除、持久化索引
 ./build/test/HNSW_Persistent_Test_Phase1
@@ -34,7 +36,7 @@ Phase 2: 加载索引，验证删除/重新插入/替换的正确性
 
  7. 单元测试覆盖插入、删除、替换等典型操作
 
-📁 数据文件说明
+# 数据文件说明
 embedding_data/embedding_vectors.bin：所有向量的二进制拼接文件（每个 entry 为 8B key + dim×4B 向量）
 
 hnsw_data/：持久化的 HNSW 索引目录，包含：
