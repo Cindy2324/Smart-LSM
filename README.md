@@ -1,4 +1,5 @@
-Smart LSM-tree with Persistent HNSW
+# Smart LSM-tree with Persistent HNSW
+===
 本项目基于传统的 LSM-tree 构建了一个支持高效向量检索的键值存储系统，并集成了 HNSW（Hierarchical Navigable Small World） 图结构，实现了向量索引的持久化、Lazy Delete、修改操作等功能，支持端到端的语义搜索。
 
 # 项目结构：
